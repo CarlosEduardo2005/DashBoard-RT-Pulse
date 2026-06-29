@@ -91,9 +91,6 @@ async function fetchAllPages(apiPath, params) {
 // ── LEAD TYPES ────────────────────────────────────────────────────────────────
 const LEAD_TYPES = new Set([
   'lead',
-  'onsite_conversion.lead_grouped',
-  'offsite_conversion.custom.LEAD',
-  'onsite_conversion.messaging_conversation_started_7d',
 ]);
 
 // ── MAIN ──────────────────────────────────────────────────────────────────────
