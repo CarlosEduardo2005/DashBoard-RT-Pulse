@@ -627,7 +627,7 @@ fetch('/data.json?v='+Date.now())
     const ghRepo=window.location.hostname==='localhost'?'SEU-USUARIO/SEU-REPO':document.referrer||'github.com';
     $('ghLink').href=`https://github.com/actions`;
     $('loadWrap').style.display='none';
-    $('main').style.display='';
+    $('main').style.display='block';
     renderAll();
   })
   .catch(err=>{
