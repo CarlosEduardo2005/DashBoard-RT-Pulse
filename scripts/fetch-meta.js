@@ -14,9 +14,10 @@ const ACCOUNTS = (process.env.META_ACCOUNTS || '')
   .map(s => s.startsWith('act_') ? s : 'act_' + s);
 const META_VER = 'v21.0';
 
-if (!TOKEN)    { console.error('❌  META_TOKEN não configurado'); process.exit(1); }
+if (!TOKEN)           { console.error('❌  META_TOKEN não configurado'); process.exit(1); }
 if (!ACCOUNTS.length) { console.error('❌  META_ACCOUNTS não configurado'); process.exit(1); }
 
+// Período: usa META_FROM/META_TO se definidos, senão últimos META_DAYS dias
 function getDateRange() {
   if (process.env.META_FROM && process.env.META_TO) {
     return { from: process.env.META_FROM, to: process.env.META_TO };
@@ -88,11 +89,6 @@ async function fetchAllPages(apiPath, params) {
   return results;
 }
 
-// ── LEAD TYPES ────────────────────────────────────────────────────────────────
-const LEAD_TYPES = new Set([
-  'lead',
-]);
-
 // ── MAIN ──────────────────────────────────────────────────────────────────────
 async function main() {
   const { from, to } = getDateRange();
@@ -127,9 +123,10 @@ async function main() {
         const spend  = parseFloat(row.spend || 0);
         const impr   = parseInt(row.impressions || 0);
         const clicks = parseInt(row.clicks || 0);
-        const leads  = (row.actions || [])
-          .filter(a => LEAD_TYPES.has(a.action_type))
-          .reduce((s, a) => s + parseInt(a.value || 0), 0);
+
+        // ── CORREÇÃO: usa apenas action_type = 'lead' para evitar double-counting ──
+        const leadAction = (row.actions || []).find(a => a.action_type === 'lead');
+        const leads = parseInt(leadAction?.value || 0);
 
         if (spend <= 0) continue;
 
@@ -137,18 +134,21 @@ async function main() {
         const cname = normName(row.ad_name);
         const key   = unit + '|||' + cname;
 
+        // Thermo — instância separada (unit × criativo) para o termômetro
         if (!thermo[assoc][key]) thermo[assoc][key] = { g: 0, l: 0, i: 0, c: 0 };
         thermo[assoc][key].g  = Math.round((thermo[assoc][key].g + spend) * 100) / 100;
         thermo[assoc][key].l += leads;
         thermo[assoc][key].i += impr;
         thermo[assoc][key].c += clicks;
 
+        // Display — agrupado por nome de criativo para a tabela
         if (!display[assoc][cname]) display[assoc][cname] = { g: 0, l: 0, i: 0, c: 0 };
         display[assoc][cname].g  = Math.round((display[assoc][cname].g + spend) * 100) / 100;
         display[assoc][cname].l += leads;
         display[assoc][cname].i += impr;
         display[assoc][cname].c += clicks;
 
+        // Units — por conjunto de anúncio para a tabela de metas
         if (!units[assoc][unit]) units[assoc][unit] = { g: 0, l: 0 };
         units[assoc][unit].g  = Math.round((units[assoc][unit].g + spend) * 100) / 100;
         units[assoc][unit].l += leads;
@@ -160,6 +160,7 @@ async function main() {
     }
   }
 
+  // ── RESUMO ─────────────────────────────────────────────────────────────────
   console.log(`\n✅ ${totalRows} registros processados\n`);
   console.log('📊 Resumo por associação:');
   for (const a of ASSOCS) {
@@ -171,6 +172,7 @@ async function main() {
     console.log(`   ${a.padEnd(5)} R$${gasto.toFixed(2).padStart(10)} | ${String(leads).padStart(4)} leads | ${pct}% aproveitado`);
   }
 
+  // ── SALVAR ─────────────────────────────────────────────────────────────────
   const output = {
     meta: {
       last_updated: new Date().toISOString(),
